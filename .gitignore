@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# Data & artifacts
+data/raw/
+data/processed/
+*.faiss
+*.index
+*.pkl
+logs/
+wandb/
+
+# LaTeX
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.pdf
+paper/*.synctex.gz
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+
+docs/private/

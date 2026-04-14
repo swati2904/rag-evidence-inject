@@ -1,0 +1,39 @@
+# Pilot run: fixed defaults for reproducibility
+project_name: rag-evidence-inject
+seed: 42
+
+data:
+  nq_max_train: 500
+  hotpot_max_train: 500
+  pilot_nq: 100
+  pilot_hotpot: 100
+  use_kilt_nq: true
+
+retrieval:
+  top_k: 5
+  bm25_k1: 1.5
+  b: 0.75
+  dense_model: "BAAI/bge-large-en-v1.5"
+  hybrid_alpha: 0.5
+
+generation:
+  # Point OPENAI_BASE_URL to vLLM OpenAI server, e.g. http://127.0.0.1:8000/v1
+  openai_base_url: "${OPENAI_BASE_URL:-http://127.0.0.1:8000/v1}"
+  openai_api_key: "${OPENAI_API_KEY:-EMPTY}"
+  model: "Qwen/Qwen2.5-7B-Instruct"
+  max_tokens: 256
+  temperature: 0.0
+  # Fallback when no server: set use_hf_fallback true (slower, no vLLM)
+  use_hf_fallback: false
+
+paths:
+  data_dir: "data"
+  logs_dir: "logs"
+
+benchmark:
+  poison_rank_candidates: [1, 5]
+  num_distractors: 6
+
+logging:
+  jsonl: true
+  level: INFO

@@ -1,0 +1,51 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{When Truth Is Retrieved but Ignored: Benchmarking Evidence-Present Indirect Injection in Multi-Document Retrieval-Augmented Generation}
+\author{Anonymous}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Retrieval-Augmented Generation (RAG) grounds answers in retrieved documents; indirect prompt injection can appear in retrieved text. We study \emph{evidence-present} settings where truthful supporting documents are already in the retrieved set, while another passage contains instruction-like or manipulative content. We describe a reproducible benchmark construction pipeline over Natural Questions (via KILT) and HotpotQA, a failure decomposition (retrieval vs.\ exposure vs.\ obedience), and evaluate TRIM (Trust-Role Isolation Middleware) against prompt-only baselines. Tabular results are produced from the pilot run logs (e.g.\ \texttt{logs/pilot\_summary.json}) and exported to LaTeX.
+\end{abstract}
+
+\section{Introduction}
+Large language models augmented with retrieval can still be manipulated by untrusted passages co-retrieved with legitimate evidence. Unlike settings where retrieval misses gold evidence, we isolate cases where gold remains accessible yet models obey conflicting directives.
+
+\section{Threat Model}
+We consider a multi-document QA RAG pipeline with a static per-query corpus containing gold passages, distractors, and one injected ``poison'' document designed to resemble benign corpus text.
+
+\section{Method}
+\subsection{Benchmark construction}
+Controlled pools are built per query with gold and distractor documents; a poison document is synthesized from templates (answer hijack, false abstention, instruction override).
+
+\subsection{TRIM}
+TRIM separates retrieved content into explicit evidence wrappers and applies optional masking of directive-like spans prior to generation.
+
+\section{Experiments}
+Table~\ref{tab:pilot} summarizes pilot defense comparisons (from \texttt{scripts/export\_tables.py}).
+
+\begin{table}[t]
+\centering
+\caption{Pilot metrics by defense (generate via \texttt{python scripts/export\_tables.py}).}
+\label{tab:pilot}
+\input{tables/pilot_metrics.tex}
+\end{table}
+
+\section{Limitations}
+Rule-based attack-success metrics complement but do not replace human review; poison passages are synthetic; results depend on model choice and decoding.
+
+\section{Ethics}
+Adversarial passages are synthetic and used for controlled evaluation in a research setting.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

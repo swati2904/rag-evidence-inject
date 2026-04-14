@@ -1,0 +1,32 @@
+[project]
+name = "rag-evidence-inject"
+version = "0.1.0"
+description = "Evidence-present indirect injection in RAG: benchmark construction, TRIM preprocessing, evaluation"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "accelerate>=0.30.0,<1",
+    "datasets>=2.16.0,<3",
+    "transformers>=4.40.0,<5",
+    "sentence-transformers>=2.6.0,<4",
+    "faiss-cpu>=1.8.0,<2",
+    "rank-bm25>=0.2.2,<1",
+    "torch>=2.1.0,<3",
+    "pandas>=2.0.0,<3",
+    "numpy>=1.24.0,<3",
+    "pyyaml>=6.0,<7",
+    "tqdm>=4.66.0,<5",
+    "httpx>=0.27.0,<1",
+    "openai>=1.30.0,<2",
+    "scikit-learn>=1.3.0,<2",
+    "nltk>=3.8.0,<4",
+]
+
+[project.optional-dependencies]
+vllm = ["vllm>=0.4.0,<0.9"]
+gpu = ["faiss-gpu>=1.8.0,<2"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["benchmark*", "defense*", "evaluation*", "generation*", "retrieval*"]
