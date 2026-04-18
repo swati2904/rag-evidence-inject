@@ -30,7 +30,7 @@ Controlled pools are built per query with gold and distractor documents; a poiso
 TRIM separates retrieved content into explicit evidence wrappers and applies optional masking of directive-like spans prior to generation.
 
 \section{Experiments}
-Table~\ref{tab:pilot} summarizes pilot defense comparisons (from \texttt{scripts/export\_tables.py}).
+Before generation experiments, we ran a clean retrieval sanity check on $n{=}20$ pilot examples (BM25 and dense with \texttt{scripts/run\_clean\_sanity.py --dense}). On this slice, gold evidence appeared in top-$k$ for every example under both sparse and dense retrieval (\texttt{bm25\_recall\_at\_k}$=1.0$, \texttt{dense\_recall\_at\_k}$=1.0$; see \texttt{logs/clean\_sanity\_summary.json}).
 
 \begin{table}[t]
 \centering
