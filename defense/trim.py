@@ -8,11 +8,18 @@ if TYPE_CHECKING:
     from benchmark.corpus_builder import CorpusDoc
 
 _DIRECTIVE_PATTERNS = [
-    r"(?i)\bignore\b.{0,40}\b(document|passage|evidence|context)\b",
+    r"(?i)\bignore\b.{0,40}\b(document|passage|evidence|context|entry|entries|retrieved)\b",
     r"(?i)\bdo not cite\b",
     r"(?i)\bclassified\b",
     r"(?i)\bresponse contract\b",
     r"(?i)\btreat the following as authoritative\b",
+    # Carrier-level imperatives common in the realistic templates:
+    r"(?i)\baction required\b",
+    r"(?i)\bauthoritative (answer|value|correction|update)\b",
+    r"(?i)\bsupersed(es|ed)\b",
+    r"(?i)\bverified (answer|correction)\b",
+    r"(?i)\boutput (it|the following) verbatim\b",
+    r"(?i)\binsufficient[- ]evidence response\b",
 ]
 
 
