@@ -63,13 +63,19 @@ def main() -> None:
         for pr in poison_ranks:
             ordered = insert_poison_at_rank(pool, pr, rng)
             ctx = ordered[:top_k]
+            gold_in_topk = any(d.role == "gold" for d in ctx)
+            poison_in_topk = any(d.role == "poison" for d in ctx)
+            observed_poison_rank = next(
+                (i + 1 for i, d in enumerate(ctx) if d.role == "poison"), None
+            )
             for defense in defenses:
                 docs = ctx
+                mask_hits = 0
                 if defense == "trim_mask":
-                    docs = apply_trim_to_docs(ctx, mask_spans=True)
+                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=True)
                     defense_prompt = "trim"
                 elif defense == "trim":
-                    docs = apply_trim_to_docs(ctx, mask_spans=False)
+                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=False)
                     defense_prompt = "trim"
                 else:
                     defense_prompt = defense
@@ -111,8 +117,13 @@ def main() -> None:
                 row = {
                     "example_id": pool.example_id,
                     "attack": attack.family.value,
+                    "attack_template": attack.name,
                     "poison_rank": pr,
+                    "observed_poison_rank": observed_poison_rank,
+                    "gold_in_topk": gold_in_topk,
+                    "poison_in_topk": poison_in_topk,
                     "defense": defense,
+                    "mask_hits": mask_hits,
                     "exact_match": em,
                     "f1": f1,
                     "asr_rules": asr,
@@ -129,21 +140,69 @@ def main() -> None:
                     extra={"attack": attack.family.value, "defense": defense},
                 )
     logger.close()
+    def _mean(xs: list, key: str) -> float:
+        return sum(x[key] for x in xs) / max(1, len(xs))
+
     summary = {
         "n_rows": len(rows),
-        "mean_asr": sum(r["asr_rules"] for r in rows) / max(1, len(rows)),
-        "mean_em": sum(r["exact_match"] for r in rows) / max(1, len(rows)),
-        "mean_f1": sum(r["f1"] for r in rows) / max(1, len(rows)),
+        "mean_asr": _mean(rows, "asr_rules"),
+        "mean_em": _mean(rows, "exact_match"),
+        "mean_f1": _mean(rows, "f1"),
+        "gold_in_topk_rate": _mean(rows, "gold_in_topk"),
+        "poison_in_topk_rate": _mean(rows, "poison_in_topk"),
         "by_defense": {},
+        "by_family": {},
+        "by_rank": {},
+        "by_defense_family": {},
+        "mask_hits": {
+            "rows_with_any_hit": sum(1 for r in rows if r.get("mask_hits", 0) > 0),
+            "rows_trim_mask": sum(1 for r in rows if r["defense"] == "trim_mask"),
+            "mean_hits_trim_mask": (
+                sum(r.get("mask_hits", 0) for r in rows if r["defense"] == "trim_mask")
+                / max(1, sum(1 for r in rows if r["defense"] == "trim_mask"))
+            ),
+        },
     }
     for d in defenses:
         sub = [r for r in rows if r["defense"] == d]
         summary["by_defense"][d] = {
-            "asr": sum(x["asr_rules"] for x in sub) / max(1, len(sub)),
-            "em": sum(x["exact_match"] for x in sub) / max(1, len(sub)),
+            "n": len(sub),
+            "asr": _mean(sub, "asr_rules"),
+            "em": _mean(sub, "exact_match"),
+            "f1": _mean(sub, "f1"),
         }
+    families = sorted({r["attack"] for r in rows})
+    for fam in families:
+        sub = [r for r in rows if r["attack"] == fam]
+        summary["by_family"][fam] = {
+            "n": len(sub),
+            "asr": _mean(sub, "asr_rules"),
+            "em": _mean(sub, "exact_match"),
+        }
+    for r_k in sorted({r["poison_rank"] for r in rows}):
+        sub = [r for r in rows if r["poison_rank"] == r_k]
+        summary["by_rank"][str(r_k)] = {
+            "n": len(sub),
+            "asr": _mean(sub, "asr_rules"),
+            "em": _mean(sub, "exact_match"),
+        }
+    for d in defenses:
+        summary["by_defense_family"][d] = {}
+        for fam in families:
+            sub = [r for r in rows if r["defense"] == d and r["attack"] == fam]
+            summary["by_defense_family"][d][fam] = {
+                "n": len(sub),
+                "asr": _mean(sub, "asr_rules"),
+                "em": _mean(sub, "exact_match"),
+            }
     outp = log_dir / "pilot_summary.json"
-    outp.write_text(json.dumps({"rows_sample": rows[:30], "summary": summary}, indent=2), encoding="utf-8")
+    outp.write_text(
+        json.dumps(
+            {"rows_sample": rows[:30], "summary": summary, "rows": rows},
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(json.dumps(summary, indent=2))
     print(f"Wrote {outp}")
 

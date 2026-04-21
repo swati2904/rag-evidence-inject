@@ -51,12 +51,18 @@ def main() -> None:
         for pr in ranks:
             ordered = insert_poison_at_rank(pool, pr, rng)
             ctx = ordered[:top_k]
+            gold_in_topk = any(d.role == "gold" for d in ctx)
+            poison_in_topk = any(d.role == "poison" for d in ctx)
+            observed_poison_rank = next(
+                (i + 1 for i, d in enumerate(ctx) if d.role == "poison"), None
+            )
             for mode in modes:
+                mask_hits = 0
                 if mode == "trim_mask":
-                    docs = apply_trim_to_docs(ctx, mask_spans=True)
+                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=True)
                     prompt_mode = "trim"
                 elif mode == "trim":
-                    docs = apply_trim_to_docs(ctx, mask_spans=False)
+                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=False)
                     prompt_mode = "trim"
                 else:
                     docs = ctx
@@ -83,7 +89,13 @@ def main() -> None:
                     {
                         "example_id": pool.example_id,
                         "mode": mode,
+                        "attack": attack.family.value,
+                        "attack_template": attack.name,
                         "poison_rank": pr,
+                        "observed_poison_rank": observed_poison_rank,
+                        "gold_in_topk": gold_in_topk,
+                        "poison_in_topk": poison_in_topk,
+                        "mask_hits": mask_hits,
                         "asr": bool(
                             text
                             and attack_success_rules(
@@ -104,10 +116,33 @@ def main() -> None:
     for mode in modes:
         sub = [r for r in rows if r["mode"] == mode]
         by_mode[mode] = {
+            "n": len(sub),
             "asr": sum(r["asr"] for r in sub) / max(1, len(sub)),
             "em": sum(r["em"] for r in sub) / max(1, len(sub)),
         }
-    out = {"by_mode": by_mode, "rows": rows}
+    by_rank: dict[str, dict[str, float]] = {}
+    for r_k in sorted({r["poison_rank"] for r in rows}):
+        sub = [r for r in rows if r["poison_rank"] == r_k]
+        by_rank[str(r_k)] = {
+            "n": len(sub),
+            "asr": sum(r["asr"] for r in sub) / max(1, len(sub)),
+            "em": sum(r["em"] for r in sub) / max(1, len(sub)),
+        }
+    mask_summary = {
+        "rows_trim_mask": sum(1 for r in rows if r["mode"] == "trim_mask"),
+        "rows_with_any_hit": sum(1 for r in rows if r.get("mask_hits", 0) > 0),
+        "mean_hits_trim_mask": (
+            sum(r.get("mask_hits", 0) for r in rows if r["mode"] == "trim_mask")
+            / max(1, sum(1 for r in rows if r["mode"] == "trim_mask"))
+        ),
+    }
+    out = {
+        "by_mode": by_mode,
+        "by_rank": by_rank,
+        "mask_hits": mask_summary,
+        "n_rows": len(rows),
+        "rows": rows,
+    }
     outp = log_dir / "ablation_summary.json"
     outp.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(json.dumps(by_mode, indent=2))

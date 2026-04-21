@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
-from benchmark.corpus_builder import CorpusDoc
+if TYPE_CHECKING:
+    from benchmark.corpus_builder import CorpusDoc
 
 _DIRECTIVE_PATTERNS = [
     r"(?i)\bignore\b.{0,40}\b(document|passage|evidence|context)\b",
@@ -23,14 +25,29 @@ def mask_instruction_spans(text: str) -> tuple[str, int]:
     return masked, hits
 
 
-def apply_trim_to_docs(docs: list[CorpusDoc], *, mask_spans: bool) -> list[CorpusDoc]:
+def apply_trim_to_docs(
+    docs: list[CorpusDoc], *, mask_spans: bool
+) -> tuple[list[CorpusDoc], int]:
+    """Return (possibly-masked docs, total directive-pattern hits across poison docs).
+
+    When ``mask_spans`` is False, docs are returned unchanged and hits is 0
+    (useful as a "trim" prompting-only baseline). When True, poison-role docs
+    have directive spans replaced and ``hits`` reports how many matches fired;
+    this lets experiments tell whether trim_mask actually altered the text.
+    """
+    total_hits = 0
     if not mask_spans:
-        return docs
+        return docs, 0
     out: list[CorpusDoc] = []
     for d in docs:
         if d.role == "poison":
-            new_text, _ = mask_instruction_spans(d.text)
-            out.append(CorpusDoc(doc_id=d.doc_id, title=d.title, text=new_text, role=d.role))
+            new_text, hits = mask_instruction_spans(d.text)
+            total_hits += hits
+            # Local import avoids pulling benchmark.datasets (and the HF datasets
+            # package) into defense.trim at module import time.
+            from benchmark.corpus_builder import CorpusDoc as _CD
+
+            out.append(_CD(doc_id=d.doc_id, title=d.title, text=new_text, role=d.role))
         else:
             out.append(d)
-    return out
+    return out, total_hits
