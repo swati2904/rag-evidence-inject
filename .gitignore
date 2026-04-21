@@ -31,4 +31,8 @@ paper/*.synctex.gz
 .vscode/
 .cursor/
 
+# Jupyter (never commit checkpoints)
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
 docs/private/

@@ -13,11 +13,11 @@
 \maketitle
 
 \begin{abstract}
-Retrieval-Augmented Generation (RAG) grounds answers in retrieved documents indirect prompt injection can appear in retrieved text. We study \emph{evidence-present} settings where truthful supporting documents are already in the retrieved set, while another passage contains instruction-like or manipulative content. We describe a reproducible benchmark construction pipeline over Natural Questions (via KILT) and HotpotQA, a failure decomposition (retrieval vs.\ exposure vs.\ obedience), and evaluate TRIM (Trust-Role Isolation Middleware) against prompt-only baselines. Tabular results are produced from the pilot run logs (e.g.\ \texttt{logs/pilot\_summary.json}) and exported to LaTeX.
+Retrieval-Augmented Generation (RAG) grounds answers in retrieved documents; indirect prompt injection can appear in retrieved text. We study \emph{evidence-present} settings where truthful supporting documents are already in the retrieved set, while another passage contains instruction-like or manipulative content. We describe a reproducible benchmark construction pipeline over Natural Questions (via KILT) and HotpotQA, a failure decomposition (retrieval vs.\ exposure vs.\ obedience), and evaluate TRIM (Trust-Role Isolation Middleware) against prompt-only baselines. Tabular results are produced from the pilot run logs (e.g.\ \texttt{logs/pilot\_summary.json}) and exported to LaTeX.
 \end{abstract}
 
 \section{Introduction}
-Large language models augmented with retrieval can still be manipulated by untrusted passages co-retrieved with legitimate evidence. Unlike settings where retrieval misses gold evidence, we isolate cases where gold remains accessible yet models obey conflicting directives.
+Large language models augmented with retrieval can still be manipulated by untrusted passages co-retrieved with legitimate evidence. Indirect prompt injection via untrusted content is now well documented in LLM-integrated applications~\cite{greshake2023indirect}, and end-to-end RAG-style pipelines have been studied under systematic manipulations~\cite{destefano2024ragnroll}. Unlike settings where retrieval misses gold evidence, we isolate cases where gold remains accessible yet models obey conflicting directives.
 
 \section{Threat Model}
 We consider a multi-document QA RAG pipeline with a static per-query corpus containing gold passages, distractors, and one injected ``poison'' document designed to resemble benign corpus text.
@@ -30,24 +30,38 @@ Controlled pools are built per query with gold and distractor documents; a poiso
 TRIM separates retrieved content into explicit evidence wrappers and applies optional masking of directive-like spans prior to generation.
 
 \section{Experiments}
-Before generation experiments, we ran a clean retrieval sanity check on $n{=}20$ pilot examples (BM25 and dense with \texttt{scripts/run\_clean\_sanity.py --dense}). On this slice, gold evidence appeared in top-$k$ for every example under both sparse and dense retrieval (\texttt{bm25\_recall\_at\_k}$=1.0$, \texttt{dense\_recall\_at\_k}$=1.0$; see \texttt{logs/clean\_sanity\_summary.json}).
+
+\subsection{Setup}
+Unless noted otherwise, we use the defaults in \texttt{configs/pilot.yaml}: Natural Questions via KILT and HotpotQA-style items, BM25 retrieval with $k=5$, six distractor passages per pool, and poison ranks drawn from $\{1,5\}$ for the main pilot (and $\{1,3,5\}$ for the ablation script). Generation uses \texttt{Qwen/Qwen2.5-7B-Instruct} with greedy decoding (\texttt{temperature}$=0$) and up to 256 new tokens, either through an OpenAI-compatible server or local Hugging Face weights (\texttt{--hf-fallback}). Each logged row is one full prompt--answer call for a given query, poison placement, and defense.
+
+\subsection{Retrieval sanity (no LLM)}
+Before generation experiments, we ran a clean retrieval sanity check on $n=20$ pilot examples using \texttt{scripts/run\_clean\_sanity.py} with BM25 and dense encoders (\texttt{--dense}; \texttt{BAAI/bge-large-en-v1.5}). On this slice, gold evidence appeared in top-$k$ for every example under both sparse and dense retrieval (\texttt{bm25\_recall\_at\_k}$=1.0$, \texttt{dense\_recall\_at\_k}$=1.0$; see \texttt{logs/clean\_sanity\_summary.json}). This supports treating downstream failures as primarily exposure or obedience effects under evidence-present pools, not systematic retrieval miss on the pilot slice.
+
+\subsection{Metrics}
+\textbf{ASR (rules)} is the fraction of model outputs flagged by lightweight, attack-family-specific rules as satisfying the adversarial objective (e.g., emitting a malicious target string). \textbf{EM} is exact match of the model answer against benchmark gold strings after normalization. The pilot runner also records token-overlap F1 against gold answers in the JSON logs; Table~\ref{tab:pilot} focuses on ASR and EM for space. Lower ASR is better; higher EM is better.
+
+\subsection{Main pilot}
+We run \texttt{scripts/run\_pilot.py} over 100 KILT NQ and 100 Hotpot-style training items (seed~42), sampling a poison template per example, then enumerating both configured poison ranks and all five defenses (\texttt{none}, \texttt{reminder}, \texttt{boundary}, \texttt{trim}, \texttt{trim\_mask}). That yields 200 queries $\times$ 2 ranks $\times$ 5 defenses $=2000$ generation rows; aggregates appear in \texttt{logs/pilot\_summary.json}. Table~\ref{tab:pilot} reports per-defense means exported via \texttt{python scripts/export\_tables.py}.
+
+\subsection{Defense ablation}
+We run \texttt{scripts/run\_ablation.py} on a smaller slice controlled by \texttt{--subset} (half NQ, half Hotpot-style), holding the poison template fixed to the first template family, sweeping defenses \texttt{none}, \texttt{reminder}, \texttt{trim}, and \texttt{trim\_mask} across poison ranks $\{1,3,5\}$. Table~\ref{tab:ablation} shows per-mode ASR and EM for the summary currently checked into \texttt{logs/ablation\_summary.json} and exported with the same script as the pilot table.
 
 \begin{table}[t]
 \centering
-\caption{Pilot metrics by defense (generate via \texttt{python scripts/export\_tables.py}).}
+\caption{Pilot metrics by defense (from \texttt{logs/pilot\_summary.json}; regenerate via \texttt{python scripts/export\_tables.py}).}
 \label{tab:pilot}
 \input{tables/pilot_metrics.tex}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{Ablation metrics by defense mode (generate via \texttt{python scripts/export\_tables.py}).}
+\caption{Ablation metrics by defense mode (from \texttt{logs/ablation\_summary.json}; regenerate via \texttt{python scripts/export\_tables.py}).}
 \label{tab:ablation}
 \input{tables/ablation_metrics.tex}
 \end{table}
 
 \section{Limitations}
-Rule-based attack-success metrics complement but do not replace human review; poison passages are synthetic; results depend on model choice and decoding.
+Attack success is measured with rules that approximate human judgment; they can miss subtle successes or over-flag borderline phrasing, so ASR should be read as a tractable proxy rather than ground truth. Poison passages are synthetic and drawn from a small template set, which aids reproducibility but may under-represent open-web diversity. Natural Questions rows in the KILT-style path may use short surrogate passages when full Wikipedia text is not wired in, which can shift retrieval behavior relative to full-document corpora. Finally, all numbers here depend on the specific base model, decoding parameters, and retrieval backend; changing any of these can move ASR and EM materially without altering the benchmark code.
 
 \section{Ethics}
 Adversarial passages are synthetic and used for controlled evaluation in a research setting.
