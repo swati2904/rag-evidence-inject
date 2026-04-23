@@ -24,10 +24,10 @@ We consider a multi-document QA RAG pipeline with a static per-query corpus cont
 
 \section{Method}
 \subsection{Benchmark construction}
-Controlled pools are built per query with gold and distractor documents; a poison document is synthesized from templates (answer hijack, false abstention, instruction override).
+Controlled pools are built per query with gold and distractor documents; a poison document is synthesized from templates spanning three attack families (answer hijack, false abstention, instruction override). To avoid toy-benchmark failure modes, each template is framed as a realistic carrier document---a knowledge-base release note, an internal source-policy memo, or a help-center FAQ---with the adversarial directive embedded inside the carrier's natural section structure rather than stated as a bare imperative.
 
 \subsection{TRIM}
-TRIM separates retrieved content into explicit evidence wrappers and applies optional masking of directive-like spans prior to generation.
+TRIM wraps retrieved content in explicit evidence delimiters with source metadata and instructs the model to treat retrieved text as untrusted evidence, not as instruction authority. The \texttt{trim\_mask} variant additionally replaces directive-like spans inside poison-role passages with a \texttt{[MASKED]} placeholder before prompt assembly; matches are logged per row so that mask-hit rate can be reported alongside defense effectiveness.
 
 \section{Experiments}
 
@@ -41,16 +41,43 @@ Before generation experiments, we ran a clean retrieval sanity check on $n=20$ p
 \textbf{ASR (rules)} is the fraction of model outputs flagged by lightweight, attack-family-specific rules as satisfying the adversarial objective (e.g., emitting a malicious target string). \textbf{EM} is exact match of the model answer against benchmark gold strings after normalization. The pilot runner also records token-overlap F1 against gold answers in the JSON logs; Table~\ref{tab:pilot} focuses on ASR and EM for space. Lower ASR is better; higher EM is better.
 
 \subsection{Main pilot}
-We run \texttt{scripts/run\_pilot.py} over 100 KILT NQ and 100 Hotpot-style training items (seed~42), sampling a poison template per example, then enumerating both configured poison ranks and all five defenses (\texttt{none}, \texttt{reminder}, \texttt{boundary}, \texttt{trim}, \texttt{trim\_mask}). That yields 200 queries $\times$ 2 ranks $\times$ 5 defenses $=2000$ generation rows; aggregates appear in \texttt{logs/pilot\_summary.json}. Table~\ref{tab:pilot} reports per-defense means exported via \texttt{python scripts/export\_tables.py}.
+We run \texttt{scripts/run\_pilot.py} over 100 KILT NQ and 100 Hotpot-style training items (seed~42), sampling a poison template per example, then enumerating both configured poison ranks and all five defenses (\texttt{none}, \texttt{reminder}, \texttt{boundary}, \texttt{trim}, \texttt{trim\_mask}). That yields 200 queries $\times$ 2 ranks $\times$ 5 defenses $=2000$ generation rows; aggregates appear in \texttt{logs/pilot\_summary.json}. Table~\ref{tab:pilot} reports per-defense means exported via \texttt{python scripts/export\_tables.py}. In this run, \texttt{poison\_in\_topk} holds for all rows by construction, and \texttt{gold\_in\_topk} holds for $91.5\%$ of rows (we report aggregates without conditioning for space; logs retain per-row conditions).
+
+Under attack, the undefended baseline reaches ASR $0.210$, confirming the evidence-present phenomenon: directives embedded in carrier documents change answers even when gold is still in top-$k$. Prompt-only defenses (\texttt{reminder}, \texttt{boundary}) give only modest ASR reductions and, in the case of \texttt{boundary}, a visible EM drop. Structural isolation (\texttt{trim}) lowers ASR to $0.125$, and masking directive spans (\texttt{trim\_mask}) drives ASR to $0.003$ with a mean of $7.48$ mask hits per poison passage (logged as \texttt{mean\_hits\_trim\_mask} in the summary), empirically separating \texttt{trim\_mask} from the prompt-only wrapper.
+
+\paragraph{Attack family and poison rank.} Per-family and per-rank breakdowns are given in Tables~\ref{tab:pilot-family} and~\ref{tab:pilot-rank}. The false-abstention family accounts for the largest share of undefended failures (ASR $0.224$), consistent with the template instructing the model to refuse despite available evidence. Attack success is not monotone in rank: placing the poison at rank~5 yields higher ASR ($0.205$) than placing it at rank~1 ($0.076$), which we read as the model giving greater weight to directive content encountered later in the context window; we leave a deeper rank sweep to future work.
+
+\paragraph{Matched clean-utility control.} To separate attack-induced utility loss from defense-induced utility loss, we ran \texttt{scripts/run\_pilot.py --clean-control}, which rebuilds each pool without poison and re-runs every defense once per question (see \texttt{logs/pilot\_clean\_summary.json}; Table~\ref{tab:pilot-clean}). Refusal rates remain at or below $1\%$ across all defenses, so none of the methods ``wins'' by over-abstention. On poison-free pools, \texttt{trim} and \texttt{trim\_mask} achieve the highest EM and F1 of any defense; in contrast, \texttt{boundary} reduces EM to $0.195$, confirming that long boundary-policy prompts can hurt grounded answering even in the absence of attack.
 
 \subsection{Defense ablation}
 We run \texttt{scripts/run\_ablation.py} on a smaller slice controlled by \texttt{--subset} (half NQ, half Hotpot-style), holding the poison template fixed to the first template family, sweeping defenses \texttt{none}, \texttt{reminder}, \texttt{trim}, and \texttt{trim\_mask} across poison ranks $\{1,3,5\}$. Table~\ref{tab:ablation} shows per-mode ASR and EM for the summary currently checked into \texttt{logs/ablation\_summary.json} and exported with the same script as the pilot table.
 
 \begin{table}[t]
 \centering
-\caption{Pilot metrics by defense (from \texttt{logs/pilot\_summary.json}; regenerate via \texttt{python scripts/export\_tables.py}).}
+\caption{Pilot metrics by defense under attack (from \texttt{logs/pilot\_summary.json}; regenerate via \texttt{python scripts/export\_tables.py}). $n{=}400$ rows per defense, aggregating over 200 queries and two poison ranks.}
 \label{tab:pilot}
 \input{tables/pilot_metrics.tex}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Pilot attack success and EM by attack family (from \texttt{logs/pilot\_summary.json}).}
+\label{tab:pilot-family}
+\input{tables/pilot_by_family.tex}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Pilot attack success and EM by poison rank (from \texttt{logs/pilot\_summary.json}).}
+\label{tab:pilot-rank}
+\input{tables/pilot_by_rank.tex}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Matched clean-utility control: EM, F1, and refusal rate on poison-free pools (from \texttt{logs/pilot\_clean\_summary.json}; $n{=}200$ rows per defense).}
+\label{tab:pilot-clean}
+\input{tables/pilot_clean_metrics.tex}
 \end{table}
 
 \begin{table}[t]
@@ -61,7 +88,7 @@ We run \texttt{scripts/run\_ablation.py} on a smaller slice controlled by \textt
 \end{table}
 
 \section{Limitations}
-Attack success is measured with rules that approximate human judgment; they can miss subtle successes or over-flag borderline phrasing, so ASR should be read as a tractable proxy rather than ground truth. Poison passages are synthetic and drawn from a small template set, which aids reproducibility but may under-represent open-web diversity. Natural Questions rows in the KILT-style path may use short surrogate passages when full Wikipedia text is not wired in, which can shift retrieval behavior relative to full-document corpora. Finally, all numbers here depend on the specific base model, decoding parameters, and retrieval backend; changing any of these can move ASR and EM materially without altering the benchmark code.
+Attack success is measured with rules that approximate human judgment; they can miss subtle successes or over-flag borderline phrasing, so ASR should be read as a tractable proxy rather than ground truth. Poison passages are synthetic and drawn from a small template set (three carrier genres, one template each), which aids reproducibility but may under-represent open-web diversity. During benchmark construction, the poison document currently incorporates a short distractor prefix for retrieval realism; on KILT items with few native distractors, that prefix can be padded from a non-primary gold passage, which may inflate EM for non-masking defenses under attack. We treat this as a known confound to be removed in the next iteration of the corpus builder. Natural Questions rows in the KILT-style path may use short surrogate passages when full Wikipedia text is not wired in, which can shift retrieval behavior relative to full-document corpora. Finally, all numbers here depend on the specific base model, decoding parameters, and retrieval backend; changing any of these can move ASR and EM materially without altering the benchmark code.
 
 \section{Ethics}
 Adversarial passages are synthetic and used for controlled evaluation in a research setting.
