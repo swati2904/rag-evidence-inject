@@ -13,7 +13,7 @@ def _safe(name: str) -> str:
 
 
 def make_attack_table(title_map: dict[str, dict[str, float]]) -> str:
-    """Attack-side per-defense table: ASR, EM, F1."""
+    """Attack-side per-defense table: ASR, EM, F1 (used when summaries include F1)."""
     lines = [
         r"\begin{tabular}{lccc}",
         r"\hline",
@@ -24,6 +24,22 @@ def make_attack_table(title_map: dict[str, dict[str, float]]) -> str:
         lines.append(
             f"{_safe(name)} & {vals.get('asr', 0):.3f} & "
             f"{vals.get('em', 0):.3f} & {vals.get('f1', 0):.3f} \\\\"
+        )
+    lines.extend([r"\hline", r"\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def make_ablation_table(title_map: dict[str, dict[str, float]]) -> str:
+    """Ablation table: ASR + EM only (the ablation runner does not record F1)."""
+    lines = [
+        r"\begin{tabular}{lcc}",
+        r"\hline",
+        r"Defense & ASR (rules) & EM \\",
+        r"\hline",
+    ]
+    for name, vals in title_map.items():
+        lines.append(
+            f"{_safe(name)} & {vals.get('asr', 0):.3f} & {vals.get('em', 0):.3f} \\\\"
         )
     lines.extend([r"\hline", r"\end{tabular}", ""])
     return "\n".join(lines)
@@ -151,8 +167,8 @@ def main() -> None:
     write_if_exists(
         Path(args.ablation_summary),
         Path(args.ablation_out),
-        lambda d: make_attack_table(d.get("by_mode", {})),
-        _placeholder("lccc", "Defense & ASR (rules) & EM & F1"),
+        lambda d: make_ablation_table(d.get("by_mode", {})),
+        _placeholder("lcc", "Defense & ASR (rules) & EM"),
     )
 
 
