@@ -49,9 +49,12 @@ def build_pool_for_example(
         return None
     distractors = list(ex.distractor_docs)
     rng.shuffle(distractors)
-    chosen_d = distractors[: max(0, num_distractors)]
+    real_d = distractors[: max(0, num_distractors)]
+    chosen_d = list(real_d)
     if len(chosen_d) < num_distractors and ex.source == "kilt_nq":
-        # Pad distractor list using extra gold snippets when KILT yields too few distractors
+        # Pad pool size with extra gold snippets when KILT yields too few real distractors.
+        # These padded docs are kept out of the poison-prefix source to avoid leaking gold
+        # answer text into the poison passage (see paper limitations / Phase A confound fix).
         for i, g in enumerate(gold_docs[1:]):
             if len(chosen_d) >= num_distractors:
                 break
@@ -63,7 +66,7 @@ def build_pool_for_example(
                 }
             )
     mal = _pick_malicious_answer(ex.gold_answers, rng)
-    summary = chosen_d[0]["text"][:400] if chosen_d else (gold_docs[0]["text"][:400])
+    summary = real_d[0]["text"][:400] if real_d else ""
     poison_text = render_poison(
         attack,
         distractor_summary=summary,

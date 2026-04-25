@@ -91,5 +91,8 @@ def render_poison(
 ) -> str:
     text = template.body.replace("{malicious_answer}", malicious_answer)
     text = text.replace("{distractor_summary}", distractor_summary)
-    header = f"Title: {template.carrier_title}\n{distractor_summary}\n\n"
+    if distractor_summary:
+        header = f"Title: {template.carrier_title}\n{distractor_summary}\n\n"
+    else:
+        header = f"Title: {template.carrier_title}\n\n"
     return header + template.carrier_prefix + text
