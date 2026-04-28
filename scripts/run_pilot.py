@@ -248,6 +248,7 @@ def main() -> None:
         "by_family": {},
         "by_rank": {},
         "by_defense_family": {},
+        "by_template": {},
         "mask_hits": {
             "rows_with_any_hit": sum(1 for r in rows if r.get("mask_hits", 0) > 0),
             "rows_trim_mask": sum(1 for r in rows if r["defense"] == "trim_mask"),
@@ -289,6 +290,20 @@ def main() -> None:
                 "asr": _mean(sub, "asr_rules"),
                 "em": _mean(sub, "exact_match"),
             }
+    templates_seen = sorted({r["attack_template"] for r in rows})
+    for t in templates_seen:
+        sub = [r for r in rows if r["attack_template"] == t]
+        fam = sub[0]["attack"] if sub else ""
+        summary["by_template"][t] = {
+            "family": fam,
+            "n": len(sub),
+            "asr": _mean(sub, "asr_rules"),
+            "em": _mean(sub, "exact_match"),
+            "asr_undefended": (
+                sum(r["asr_rules"] for r in sub if r["defense"] == "none")
+                / max(1, sum(1 for r in sub if r["defense"] == "none"))
+            ),
+        }
     outp = log_dir / "pilot_summary.json"
     outp.write_text(
         json.dumps(

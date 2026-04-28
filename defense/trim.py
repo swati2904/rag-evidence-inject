@@ -20,6 +20,18 @@ _DIRECTIVE_PATTERNS = [
     r"(?i)\bverified (answer|correction)\b",
     r"(?i)\boutput (it|the following) verbatim\b",
     r"(?i)\binsufficient[- ]evidence response\b",
+    # Phase A+ template idioms:
+    r"(?i)\bcorrigendum\b",
+    r"(?i)\bredact(ed|ion)\b",
+    r"(?i)\bcompliance (review|hold|clearance)\b",
+    r"(?i)\bcanonical (answer|response|value|response field)\b",
+    r"(?i)\b(approved )?runbook\b",
+    r"(?i)\bintegration (spec|contract|specification)\b",
+    r"(?i)\bdata steward(ship)? advisory\b",
+    r"(?i)\bcache[- ]refresh advisory\b",
+    r"(?i)\bnon[- ]disclosure hold\b",
+    r"(?i)\bredaction (notice|hold)\b",
+    r"(?i)\boutput (it|the canonical (value|response)|the following) verbatim\b",
 ]
 
 
