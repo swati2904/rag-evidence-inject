@@ -248,6 +248,7 @@ def main() -> None:
         "by_family": {},
         "by_rank": {},
         "by_defense_family": {},
+        "by_defense_rank": {},
         "by_template": {},
         "mask_hits": {
             "rows_with_any_hit": sum(1 for r in rows if r.get("mask_hits", 0) > 0),
@@ -286,6 +287,15 @@ def main() -> None:
         for fam in families:
             sub = [r for r in rows if r["defense"] == d and r["attack"] == fam]
             summary["by_defense_family"][d][fam] = {
+                "n": len(sub),
+                "asr": _mean(sub, "asr_rules"),
+                "em": _mean(sub, "exact_match"),
+            }
+    for d in defenses:
+        summary["by_defense_rank"][d] = {}
+        for r_k in sorted({r["poison_rank"] for r in rows}):
+            sub = [r for r in rows if r["defense"] == d and r["poison_rank"] == r_k]
+            summary["by_defense_rank"][d][str(r_k)] = {
                 "n": len(sub),
                 "asr": _mean(sub, "asr_rules"),
                 "em": _mean(sub, "exact_match"),

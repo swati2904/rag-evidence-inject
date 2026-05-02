@@ -96,6 +96,37 @@ def make_rank_table(by_rank: dict[str, dict[str, float]]) -> str:
     return "\n".join(lines)
 
 
+def make_defense_rank_table(
+    by_defense_rank: dict[str, dict[str, dict[str, float]]],
+    defenses: list[str] | None = None,
+) -> str:
+    """ASR matrix: rows = defenses (in fixed order), columns = poison ranks."""
+    if not by_defense_rank:
+        return _placeholder("lc", "Defense & ASR (rules)")
+    ranks = sorted(
+        {r for vals in by_defense_rank.values() for r in vals.keys()},
+        key=lambda x: int(x),
+    )
+    cols = "l" + "c" * len(ranks)
+    if defenses is None:
+        defenses = list(by_defense_rank.keys())
+    header = " & ".join(["Defense"] + [f"rank {r}" for r in ranks]) + r" \\"
+    lines = [
+        rf"\begin{{tabular}}{{{cols}}}",
+        r"\hline",
+        header,
+        r"\hline",
+    ]
+    for d in defenses:
+        row = by_defense_rank.get(d, {})
+        cells = [_safe(d)] + [
+            f"{row.get(r, {}).get('asr', 0):.3f}" for r in ranks
+        ]
+        lines.append(" & ".join(cells) + r" \\")
+    lines.extend([r"\hline", r"\end{tabular}", ""])
+    return "\n".join(lines)
+
+
 def make_template_table(by_template: dict[str, dict[str, float]]) -> str:
     """Per-template table: family, template, n, undefended ASR, overall ASR, EM.
 
@@ -164,6 +195,10 @@ def main() -> None:
         default=str(ROOT / "paper" / "tables" / "pilot_by_template.tex"),
     )
     ap.add_argument(
+        "--pilot-defense-rank-out",
+        default=str(ROOT / "paper" / "tables" / "pilot_by_defense_rank.tex"),
+    )
+    ap.add_argument(
         "--clean-summary",
         default=str(ROOT / "logs" / "pilot_clean_summary.json"),
     )
@@ -201,6 +236,15 @@ def main() -> None:
             "llcccc",
             "Family & Template & $n$ & ASR (none) & ASR (all) & EM",
         ),
+    )
+    write_if_exists(
+        Path(args.pilot_summary),
+        Path(args.pilot_defense_rank_out),
+        lambda d: make_defense_rank_table(
+            d.get("summary", {}).get("by_defense_rank", {}),
+            defenses=["none", "reminder", "boundary", "trim", "trim_mask"],
+        ),
+        _placeholder("lc", "Defense & ASR by rank"),
     )
     write_if_exists(
         Path(args.clean_summary),
