@@ -96,6 +96,37 @@ def make_rank_table(by_rank: dict[str, dict[str, float]]) -> str:
     return "\n".join(lines)
 
 
+def make_template_table(by_template: dict[str, dict[str, float]]) -> str:
+    """Per-template table: family, template, n, undefended ASR, overall ASR, EM.
+
+    Rows are grouped by family, then sorted within family by descending
+    undefended ASR so the most-dangerous template per family appears first.
+    """
+    lines = [
+        r"\begin{tabular}{llcccc}",
+        r"\hline",
+        r"Family & Template & $n$ & ASR (none) & ASR (all) & EM \\",
+        r"\hline",
+    ]
+    items = list(by_template.items())
+    items.sort(
+        key=lambda kv: (
+            kv[1].get("family", ""),
+            -float(kv[1].get("asr_undefended", 0.0)),
+        )
+    )
+    for name, vals in items:
+        lines.append(
+            f"{_safe(vals.get('family', ''))} & {_safe(name)} & "
+            f"{int(vals.get('n', 0))} & "
+            f"{vals.get('asr_undefended', 0):.3f} & "
+            f"{vals.get('asr', 0):.3f} & "
+            f"{vals.get('em', 0):.3f} \\\\"
+        )
+    lines.extend([r"\hline", r"\end{tabular}", ""])
+    return "\n".join(lines)
+
+
 def _placeholder(columns: str, header: str) -> str:
     return (
         "% Populate after running experiment script.\n"
@@ -129,6 +160,10 @@ def main() -> None:
         default=str(ROOT / "paper" / "tables" / "pilot_by_rank.tex"),
     )
     ap.add_argument(
+        "--pilot-template-out",
+        default=str(ROOT / "paper" / "tables" / "pilot_by_template.tex"),
+    )
+    ap.add_argument(
         "--clean-summary",
         default=str(ROOT / "logs" / "pilot_clean_summary.json"),
     )
@@ -157,6 +192,15 @@ def main() -> None:
         Path(args.pilot_rank_out),
         lambda d: make_rank_table(d.get("summary", {}).get("by_rank", {})),
         _placeholder("cccc", "Poison rank & $n$ & ASR (rules) & EM"),
+    )
+    write_if_exists(
+        Path(args.pilot_summary),
+        Path(args.pilot_template_out),
+        lambda d: make_template_table(d.get("summary", {}).get("by_template", {})),
+        _placeholder(
+            "llcccc",
+            "Family & Template & $n$ & ASR (none) & ASR (all) & EM",
+        ),
     )
     write_if_exists(
         Path(args.clean_summary),
