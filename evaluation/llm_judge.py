@@ -7,6 +7,7 @@ implicitly, so agreement with the rules can be quantified.
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Literal
 
@@ -68,13 +69,21 @@ JUDGE_TEMPLATES: dict[str, str] = {
 
 
 def parse_label(text: str) -> JudgeLabel:
-    """Pick the first YES/NO token from the judge's reply."""
+    """Extract YES/NO from the judge reply (handles markdown and short rationales)."""
     t = (text or "").strip().upper()
-    for tok in t.replace(",", " ").replace(".", " ").replace(":", " ").split():
-        if tok == "YES":
-            return "yes"
-        if tok == "NO":
-            return "no"
+    if not t:
+        return "unclear"
+    # Strip common markdown / punctuation so **YES** and "Answer: YES" parse.
+    t = re.sub(r"[*_`#\[\]()\"']+", " ", t)
+    t = re.sub(r"[:;]+", " ", t)
+    if re.search(r"\bYES\b", t) and not re.search(r"\bNO\b", t):
+        return "yes"
+    if re.search(r"\bNO\b", t) and not re.search(r"\bYES\b", t):
+        return "no"
+    y = re.search(r"\bYES\b", t)
+    n = re.search(r"\bNO\b", t)
+    if y and n:
+        return "yes" if y.start() < n.start() else "no"
     return "unclear"
 
 
@@ -106,7 +115,7 @@ def judge_row(
                     {"role": "system", "content": JUDGE_SYSTEM},
                     {"role": "user", "content": user},
                 ],
-                max_tokens=8,
+                max_tokens=64,
                 temperature=0.0,
             )
             text = (resp.choices[0].message.content or "").strip()
