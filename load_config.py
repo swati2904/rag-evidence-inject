@@ -31,3 +31,18 @@ def load_config(path: str | Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return _substitute(raw or {})
+
+
+def pilot_example_counts(data: dict[str, Any]) -> tuple[int, int]:
+    """Resolve (nq, hotpot) example counts from config ``data`` section.
+
+    If either ``pilot_nq`` or ``pilot_hotpot`` is present, those keys are used
+    (defaulting the sibling to 100). Otherwise ``main_nq`` / ``main_hotpot``
+    apply (for ``configs/main_experiment.yaml``). If none are present,
+    returns ``(100, 100)``.
+    """
+    if "pilot_nq" in data or "pilot_hotpot" in data:
+        return int(data.get("pilot_nq", 100)), int(data.get("pilot_hotpot", 100))
+    if "main_nq" in data or "main_hotpot" in data:
+        return int(data.get("main_nq", 100)), int(data.get("main_hotpot", 100))
+    return 100, 100

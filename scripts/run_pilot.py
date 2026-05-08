@@ -23,7 +23,7 @@ from evaluation.metrics import attack_success_rules, exact_match, f1_max
 from evaluation.run_logger import RunLogger, StageTimer
 from generation.prompts import build_prompts
 from generation.runner import generate_hf_fallback, generate_openai
-from load_config import load_config
+from load_config import load_config, pilot_example_counts
 
 
 def main() -> None:
@@ -47,8 +47,7 @@ def main() -> None:
     seed = int(cfg.get("seed", 42))
     rng = random.Random(seed)
     data = cfg["data"]
-    n_nq = int(data.get("pilot_nq", 100))
-    n_hp = int(data.get("pilot_hotpot", 100))
+    n_nq, n_hp = pilot_example_counts(data)
     if args.max_examples > 0:
         n_nq = min(n_nq, args.max_examples // 2)
         n_hp = min(n_hp, args.max_examples - n_nq)

@@ -27,7 +27,7 @@ from openai import OpenAI  # noqa: E402
 
 from benchmark.datasets import load_pilot_examples  # noqa: E402
 from evaluation.llm_judge import judge_row  # noqa: E402
-from load_config import load_config  # noqa: E402
+from load_config import load_config, pilot_example_counts  # noqa: E402
 
 
 def _build_response_map(jsonl_paths: list[Path]) -> dict[str, str]:
@@ -146,9 +146,10 @@ def main() -> None:
 
     cfg = load_config(args.config)
     data = cfg["data"]
+    n_nq, n_hp = pilot_example_counts(data)
     examples = load_pilot_examples(
-        n_nq=int(data.get("pilot_nq", 100)),
-        n_hotpot=int(data.get("pilot_hotpot", 100)),
+        n_nq=n_nq,
+        n_hotpot=n_hp,
         seed=int(cfg.get("seed", 42)),
         use_kilt_nq=bool(data.get("use_kilt_nq", True)),
     )

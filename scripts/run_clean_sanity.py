@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
 from benchmark.corpus_builder import build_clean_pool
 from benchmark.datasets import load_pilot_examples
 from evaluation.metrics import gold_in_topk
-from load_config import load_config
+from load_config import load_config, pilot_example_counts
 from retrieval.context_builder import retrieve_ids_bm25, retrieve_ids_dense
 
 
@@ -30,8 +30,7 @@ def main() -> None:
     data = cfg["data"]
     top_k = int(cfg["retrieval"]["top_k"])
     num_d = int(cfg["benchmark"]["num_distractors"])
-    pn = int(data.get("pilot_nq", 100))
-    ph = int(data.get("pilot_hotpot", 100))
+    pn, ph = pilot_example_counts(data)
     half = max(1, args.limit // 2)
     examples = load_pilot_examples(
         n_nq=min(pn, half),

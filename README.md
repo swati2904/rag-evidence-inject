@@ -46,6 +46,16 @@ export OPENAI_API_KEY=EMPTY
 python scripts/run_pilot.py --config configs/pilot.yaml
 ```
 
+Writes `logs/pilot_summary.json` and per-row `logs/run_*.jsonl` (same basenames for any config).
+
+**2b. Main-scale benchmark (optional)** — larger query counts and a subset of poison ranks (`configs/main_experiment.yaml` uses 300 NQ + 300 Hotpot, ranks `{1,3,5}`). Example sizes are read via `main_nq` / `main_hotpot` when `pilot_nq` / `pilot_hotpot` are omitted.
+
+```bash
+python scripts/run_pilot.py --config configs/main_experiment.yaml
+```
+
+Output paths match the pilot run (`logs/pilot_summary.json`). **Copy or rename** an existing summary before this if you need both results on disk.
+
 Dry run without an LLM:
 
 ```bash
@@ -79,7 +89,7 @@ cd paper && pdflatex main.tex
 | `scripts/` | CLI entry points wired to `configs/*.yaml`. |
 | `configs/` | `pilot.yaml`, `main_experiment.yaml`. |
 | `paper/` | LaTeX article source; table snippets under `paper/tables/`. |
-| `load_config.py` | YAML loader with `${VAR:-default}` substitution. |
+| `load_config.py` | YAML loader with `${VAR:-default}` substitution and `pilot_example_counts()`. |
 
 ## Natural Questions (KILT)
 
