@@ -3,26 +3,41 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from evaluation.metrics import wilson_ci  # noqa: E402
 
 
 def _safe(name: str) -> str:
     return name.replace("_", r"\_")
 
 
+def _fmt_rate_ci(rate: float, n: int) -> str:
+    """Render ``rate`` with a Wilson 95% CI as ``0.296 (0.269, 0.325)``."""
+    if n <= 0:
+        return f"{rate:.3f}"
+    k = int(round(rate * n))
+    lo, hi = wilson_ci(k, n)
+    return f"{rate:.3f} ({lo:.3f}, {hi:.3f})"
+
+
 def make_attack_table(title_map: dict[str, dict[str, float]]) -> str:
-    """Attack-side per-defense table: ASR, EM, F1 (used when summaries include F1)."""
+    """Attack-side per-defense table: ASR (Wilson 95% CI), EM, F1."""
     lines = [
         r"\begin{tabular}{lccc}",
         r"\hline",
-        r"Defense & ASR (rules) & EM & F1 \\",
+        r"Defense & ASR (rules; 95\% CI) & EM & F1 \\",
         r"\hline",
     ]
     for name, vals in title_map.items():
+        n = int(vals.get("n", 0))
         lines.append(
-            f"{_safe(name)} & {vals.get('asr', 0):.3f} & "
+            f"{_safe(name)} & {_fmt_rate_ci(vals.get('asr', 0), n)} & "
             f"{vals.get('em', 0):.3f} & {vals.get('f1', 0):.3f} \\\\"
         )
     lines.extend([r"\hline", r"\end{tabular}", ""])
@@ -63,34 +78,38 @@ def make_clean_table(title_map: dict[str, dict[str, float]]) -> str:
 
 
 def make_family_table(by_family: dict[str, dict[str, float]]) -> str:
-    """Per-attack-family table: n, ASR, EM."""
+    """Per-attack-family table: n, ASR (Wilson 95% CI), EM."""
     lines = [
         r"\begin{tabular}{lccc}",
         r"\hline",
-        r"Attack family & $n$ & ASR (rules) & EM \\",
+        r"Attack family & $n$ & ASR (rules; 95\% CI) & EM \\",
         r"\hline",
     ]
     for name, vals in by_family.items():
+        n = int(vals.get("n", 0))
         lines.append(
-            f"{_safe(name)} & {int(vals.get('n', 0))} & "
-            f"{vals.get('asr', 0):.3f} & {vals.get('em', 0):.3f} \\\\"
+            f"{_safe(name)} & {n} & "
+            f"{_fmt_rate_ci(vals.get('asr', 0), n)} & "
+            f"{vals.get('em', 0):.3f} \\\\"
         )
     lines.extend([r"\hline", r"\end{tabular}", ""])
     return "\n".join(lines)
 
 
 def make_rank_table(by_rank: dict[str, dict[str, float]]) -> str:
-    """Per-poison-rank table: n, ASR, EM."""
+    """Per-poison-rank table: n, ASR (Wilson 95% CI), EM."""
     lines = [
         r"\begin{tabular}{cccc}",
         r"\hline",
-        r"Poison rank & $n$ & ASR (rules) & EM \\",
+        r"Poison rank & $n$ & ASR (rules; 95\% CI) & EM \\",
         r"\hline",
     ]
     for name, vals in sorted(by_rank.items(), key=lambda kv: int(kv[0])):
+        n = int(vals.get("n", 0))
         lines.append(
-            f"{name} & {int(vals.get('n', 0))} & "
-            f"{vals.get('asr', 0):.3f} & {vals.get('em', 0):.3f} \\\\"
+            f"{name} & {n} & "
+            f"{_fmt_rate_ci(vals.get('asr', 0), n)} & "
+            f"{vals.get('em', 0):.3f} \\\\"
         )
     lines.extend([r"\hline", r"\end{tabular}", ""])
     return "\n".join(lines)

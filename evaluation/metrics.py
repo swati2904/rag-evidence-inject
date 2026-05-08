@@ -1,6 +1,7 @@
 """QA metrics (EM, token F1) and rule-based attack-success (ASR) estimates."""
 from __future__ import annotations
 
+import math
 import re
 import string
 from typing import Iterable
@@ -89,3 +90,41 @@ def attack_success_rules(
 
 def gold_in_topk(gold_doc_ids: set[str], retrieved_ids: list[str]) -> bool:
     return any(g in retrieved_ids for g in gold_doc_ids)
+
+
+def wilson_ci(k: int, n: int, alpha: float = 0.05) -> tuple[float, float]:
+    """Wilson score confidence interval for a binomial proportion.
+
+    Args:
+        k: Number of successes (e.g. attack-succeeded rows).
+        n: Total trials. If 0, returns (0.0, 0.0).
+        alpha: Two-sided significance level (default 0.05 for 95% CI).
+
+    Returns:
+        ``(lo, hi)`` clipped to ``[0, 1]``.
+    """
+    if n <= 0:
+        return 0.0, 0.0
+    # Two-sided z for the requested alpha; default 1.96 for 95%.
+    z = math.sqrt(2.0) * _erf_inv(1.0 - alpha)
+    p = k / n
+    denom = 1.0 + (z * z) / n
+    center = (p + (z * z) / (2.0 * n)) / denom
+    margin = (
+        z * math.sqrt((p * (1.0 - p) / n) + (z * z) / (4.0 * n * n))
+    ) / denom
+    lo = max(0.0, center - margin)
+    hi = min(1.0, center + margin)
+    return lo, hi
+
+
+def _erf_inv(x: float) -> float:
+    """Inverse error function via the Winitzki approximation (no SciPy dep)."""
+    a = 0.147
+    sign = 1.0 if x >= 0 else -1.0
+    if x == 0:
+        return 0.0
+    ln = math.log(1.0 - x * x)
+    first = (2.0 / (math.pi * a)) + (ln / 2.0)
+    inner = first * first - (ln / a)
+    return sign * math.sqrt(math.sqrt(inner) - first)

@@ -34,6 +34,16 @@ def main() -> None:
     ap.add_argument("--device", default=None)
     ap.add_argument("--max-examples", type=int, default=0, help="0 = use config pilot sizes")
     ap.add_argument(
+        "--test-split",
+        default=None,
+        help=(
+            "Optional path to a frozen split JSON (see scripts/freeze_split.py). "
+            "When provided, loaded examples are filtered to the listed example_ids "
+            "in the split's stable order, and example counts from the config are "
+            "used only as upper bounds while loading."
+        ),
+    )
+    ap.add_argument(
         "--clean-control",
         action="store_true",
         help=(
@@ -57,6 +67,20 @@ def main() -> None:
         seed=seed,
         use_kilt_nq=bool(data.get("use_kilt_nq", True)),
     )
+    if args.test_split:
+        split_path = Path(args.test_split)
+        if not split_path.is_absolute():
+            split_path = ROOT / split_path
+        split = json.loads(split_path.read_text(encoding="utf-8"))
+        wanted = list(split.get("example_ids", []))
+        wanted_set = set(wanted)
+        by_id = {ex.example_id: ex for ex in examples if ex.example_id in wanted_set}
+        examples = [by_id[i] for i in wanted if i in by_id]
+        missing = len(wanted) - len(examples)
+        print(
+            f"test-split: loaded {len(examples)}/{len(wanted)} examples"
+            + (f"; {missing} ids missing from this load" if missing else "")
+        )
     log_dir = Path(cfg["paths"]["logs_dir"])
     if not log_dir.is_absolute():
         log_dir = ROOT / log_dir
