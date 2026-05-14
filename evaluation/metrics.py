@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import math
+import random
 import re
 import string
-from typing import Iterable
+from collections import defaultdict
+from typing import Iterable, Sequence
 
 
 def normalize_answer(s: str) -> str:
@@ -128,3 +130,117 @@ def _erf_inv(x: float) -> float:
     first = (2.0 / (math.pi * a)) + (ln / 2.0)
     inner = first * first - (ln / a)
     return sign * math.sqrt(math.sqrt(inner) - first)
+
+
+def bootstrap_question_clustered_ci(
+    successes: Sequence[bool | int],
+    cluster_ids: Sequence[str],
+    *,
+    n_bootstrap: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Cluster-bootstrap CI for a rate, resampling **clusters** (questions).
+
+    Pilot rows are not IID: the same question contributes 25 rows (5 ranks x
+    5 defenses), so per-row Wilson intervals understate uncertainty. This
+    routine resamples question clusters with replacement and recomputes the
+    rate over the resampled cluster set, then returns the alpha/2 and
+    1-alpha/2 percentiles of the bootstrap distribution.
+
+    Args:
+        successes: One 0/1 value per row, in the same order as ``cluster_ids``.
+        cluster_ids: One cluster label (e.g. ``example_id``) per row.
+        n_bootstrap: Number of bootstrap resamples.
+        alpha: Two-sided significance level (default 0.05 for a 95% CI).
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        ``(point_estimate, lo, hi)`` with the rate computed on the original
+        data and the percentile-bootstrap bounds clipped to ``[0, 1]``.
+        If the input has zero rows or only one cluster, returns
+        ``(point, point, point)`` since the cluster bootstrap is degenerate.
+    """
+    if len(successes) != len(cluster_ids):
+        raise ValueError("successes and cluster_ids must align row-for-row")
+    n_rows = len(successes)
+    if n_rows == 0:
+        return 0.0, 0.0, 0.0
+    by_cluster: dict[str, list[int]] = defaultdict(list)
+    for s, c in zip(successes, cluster_ids):
+        by_cluster[c].append(int(bool(s)))
+    clusters = list(by_cluster.keys())
+    n_clusters = len(clusters)
+    point = sum(sum(v) for v in by_cluster.values()) / n_rows
+    if n_clusters <= 1:
+        return point, point, point
+    rng = random.Random(seed)
+    boots: list[float] = []
+    for _ in range(n_bootstrap):
+        total_succ = 0
+        total_rows = 0
+        for _ in range(n_clusters):
+            c = clusters[rng.randrange(n_clusters)]
+            rows = by_cluster[c]
+            total_succ += sum(rows)
+            total_rows += len(rows)
+        boots.append(total_succ / max(1, total_rows))
+    boots.sort()
+    lo_idx = int(math.floor((alpha / 2.0) * len(boots)))
+    hi_idx = int(math.ceil((1.0 - alpha / 2.0) * len(boots))) - 1
+    lo = max(0.0, min(1.0, boots[lo_idx]))
+    hi = max(0.0, min(1.0, boots[hi_idx]))
+    return point, lo, hi
+
+
+def paired_cluster_bootstrap_diff(
+    successes_a: Sequence[bool | int],
+    successes_b: Sequence[bool | int],
+    cluster_ids: Sequence[str],
+    *,
+    n_bootstrap: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Paired cluster-bootstrap CI for ``rate(B) - rate(A)``.
+
+    Use this to compare two defenses on the **same** set of question clusters.
+    For each bootstrap iteration we resample question clusters with
+    replacement and recompute both rates on the resampled set, then return
+    the percentile bounds of the per-resample difference (B - A).
+
+    The two input sequences must align row-for-row, share the same
+    ``cluster_ids``, and represent the *same* (question, rank, attack)
+    cells under different defenses -- the caller is responsible for the
+    pairing.
+    """
+    if not (len(successes_a) == len(successes_b) == len(cluster_ids)):
+        raise ValueError("inputs must align row-for-row")
+    n_rows = len(cluster_ids)
+    if n_rows == 0:
+        return 0.0, 0.0, 0.0
+    by_cluster: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for a, b, c in zip(successes_a, successes_b, cluster_ids):
+        by_cluster[c].append((int(bool(a)), int(bool(b))))
+    clusters = list(by_cluster.keys())
+    n_clusters = len(clusters)
+    pa = sum(x for v in by_cluster.values() for x, _ in v) / n_rows
+    pb = sum(y for v in by_cluster.values() for _, y in v) / n_rows
+    point = pb - pa
+    if n_clusters <= 1:
+        return point, point, point
+    rng = random.Random(seed)
+    boots: list[float] = []
+    for _ in range(n_bootstrap):
+        sa = sb = total = 0
+        for _ in range(n_clusters):
+            c = clusters[rng.randrange(n_clusters)]
+            for a, b in by_cluster[c]:
+                sa += a
+                sb += b
+                total += 1
+        boots.append((sb / max(1, total)) - (sa / max(1, total)))
+    boots.sort()
+    lo_idx = int(math.floor((alpha / 2.0) * len(boots)))
+    hi_idx = int(math.ceil((1.0 - alpha / 2.0) * len(boots))) - 1
+    return point, boots[lo_idx], boots[hi_idx]

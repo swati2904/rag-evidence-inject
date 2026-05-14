@@ -187,12 +187,12 @@ def main() -> None:
             )
             for defense in defenses:
                 docs = ctx
-                mask_hits = 0
+                hits = {"mask_hits_total": 0, "mask_hits_poison": 0, "mask_hits_benign": 0}
                 if defense == "trim_mask":
-                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=True)
+                    docs, hits = apply_trim_to_docs(ctx, mask_spans=True)
                     defense_prompt = "trim"
                 elif defense == "trim":
-                    docs, mask_hits = apply_trim_to_docs(ctx, mask_spans=False)
+                    docs, hits = apply_trim_to_docs(ctx, mask_spans=False)
                     defense_prompt = "trim"
                 else:
                     defense_prompt = defense
@@ -240,7 +240,12 @@ def main() -> None:
                     "gold_in_topk": gold_in_topk,
                     "poison_in_topk": poison_in_topk,
                     "defense": defense,
-                    "mask_hits": mask_hits,
+                    "mask_hits_total": hits["mask_hits_total"],
+                    "mask_hits_poison": hits["mask_hits_poison"],
+                    "mask_hits_benign": hits["mask_hits_benign"],
+                    # Back-compat alias: prior log readers used a flat "mask_hits"
+                    # field; we keep it pointing at the total.
+                    "mask_hits": hits["mask_hits_total"],
                     "exact_match": em,
                     "f1": f1,
                     "asr_rules": asr,
@@ -260,6 +265,40 @@ def main() -> None:
     def _mean(xs: list, key: str) -> float:
         return sum(x[key] for x in xs) / max(1, len(xs))
 
+    def _summarize_mask_hits(rs: list[dict]) -> dict:
+        """Roll up per-row mask-hit counts for the trim_mask rows.
+
+        We split poison vs. benign hits so the paper can quantify the
+        false-positive rate (firing on gold/distractor passages) -- the cost
+        of running TRIM-mask role-agnostically.
+        """
+        mask_rows = [r for r in rs if r["defense"] == "trim_mask"]
+        n_mask = len(mask_rows)
+        n_any_hit = sum(1 for r in mask_rows if r.get("mask_hits_total", 0) > 0)
+        n_benign_hit = sum(
+            1 for r in mask_rows if r.get("mask_hits_benign", 0) > 0
+        )
+        n_poison_hit = sum(
+            1 for r in mask_rows if r.get("mask_hits_poison", 0) > 0
+        )
+        return {
+            "rows_trim_mask": n_mask,
+            "rows_with_any_hit": n_any_hit,
+            "rows_with_poison_hit": n_poison_hit,
+            "rows_with_benign_hit": n_benign_hit,
+            "benign_hit_rate": n_benign_hit / max(1, n_mask),
+            "poison_hit_rate": n_poison_hit / max(1, n_mask),
+            "mean_hits_total": (
+                sum(r.get("mask_hits_total", 0) for r in mask_rows) / max(1, n_mask)
+            ),
+            "mean_hits_poison": (
+                sum(r.get("mask_hits_poison", 0) for r in mask_rows) / max(1, n_mask)
+            ),
+            "mean_hits_benign": (
+                sum(r.get("mask_hits_benign", 0) for r in mask_rows) / max(1, n_mask)
+            ),
+        }
+
     summary = {
         "n_rows": len(rows),
         "mean_asr": _mean(rows, "asr_rules"),
@@ -273,14 +312,7 @@ def main() -> None:
         "by_defense_family": {},
         "by_defense_rank": {},
         "by_template": {},
-        "mask_hits": {
-            "rows_with_any_hit": sum(1 for r in rows if r.get("mask_hits", 0) > 0),
-            "rows_trim_mask": sum(1 for r in rows if r["defense"] == "trim_mask"),
-            "mean_hits_trim_mask": (
-                sum(r.get("mask_hits", 0) for r in rows if r["defense"] == "trim_mask")
-                / max(1, sum(1 for r in rows if r["defense"] == "trim_mask"))
-            ),
-        },
+        "mask_hits": _summarize_mask_hits(rows),
     }
     for d in defenses:
         sub = [r for r in rows if r["defense"] == d]
