@@ -100,10 +100,20 @@ def main() -> None:
             ctx = docs_all[:top_k]
             gold_in_topk = any(d.role == "gold" for d in ctx)
             for defense in defenses:
+                docs = ctx
+                hits = {"mask_hits_total": 0, "mask_hits_poison": 0, "mask_hits_benign": 0}
+                if defense == "trim_mask":
+                    docs, hits = apply_trim_to_docs(ctx, mask_spans=True)
+                    defense_prompt = "trim"
+                elif defense == "trim":
+                    docs, hits = apply_trim_to_docs(ctx, mask_spans=False)
+                    defense_prompt = "trim"
+                else:
+                    defense_prompt = defense
                 bundle = build_prompts(
                     ex.question,
-                    ctx,
-                    defense="trim" if defense in ("trim", "trim_mask") else defense,
+                    docs,
+                    defense=defense_prompt,
                 )
                 if args.no_llm:
                     text = ""
@@ -145,6 +155,10 @@ def main() -> None:
                         "exact_match": em,
                         "f1": f1,
                         "refused": refused,
+                        "mask_hits_total": hits["mask_hits_total"],
+                        "mask_hits_poison": hits["mask_hits_poison"],
+                        "mask_hits_benign": hits["mask_hits_benign"],
+                        "mask_hits": hits["mask_hits_total"],
                         "latency_s": lat,
                     }
                 )
@@ -156,6 +170,12 @@ def main() -> None:
                 "em": sum(x["exact_match"] for x in sub) / max(1, len(sub)),
                 "f1": sum(x["f1"] for x in sub) / max(1, len(sub)),
                 "refusal_rate": sum(x["refused"] for x in sub) / max(1, len(sub)),
+                "mask_hit_rate": (
+                    sum(x.get("mask_hits_total", 0) > 0 for x in sub) / max(1, len(sub))
+                ),
+                "mean_mask_hits": (
+                    sum(x.get("mask_hits_total", 0) for x in sub) / max(1, len(sub))
+                ),
             }
         clean_summary = {
             "n_rows": len(clean_rows),

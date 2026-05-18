@@ -182,6 +182,22 @@ def make_ablation_table(title_map: dict[str, dict[str, float]]) -> str:
 
 def make_clean_table(title_map: dict[str, dict[str, float]]) -> str:
     """Matched clean-utility table: EM, F1, refusal rate (no attack)."""
+    has_mask_hits = any("mask_hit_rate" in vals for vals in title_map.values())
+    if has_mask_hits:
+        lines = [
+            r"\begin{tabular}{lcccc}",
+            r"\hline",
+            r"Defense & EM & F1 & Refusal & Mask-hit rows \\",
+            r"\hline",
+        ]
+        for name, vals in title_map.items():
+            lines.append(
+                f"{_safe(name)} & {vals.get('em', 0):.3f} & "
+                f"{vals.get('f1', 0):.3f} & {vals.get('refusal_rate', 0):.3f} & "
+                f"{vals.get('mask_hit_rate', 0):.3f} \\\\"
+            )
+        lines.extend([r"\hline", r"\end{tabular}", ""])
+        return "\n".join(lines)
     lines = [
         r"\begin{tabular}{lccc}",
         r"\hline",

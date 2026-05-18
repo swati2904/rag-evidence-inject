@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
 .env
@@ -35,4 +36,5 @@ paper/*.synctex.gz
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
 
-docs/private/
+# Local notes, working copies, and scratch files that should never be pushed
+workspace_notes/
