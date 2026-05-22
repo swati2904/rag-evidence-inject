@@ -52,7 +52,7 @@ python scripts/run_pilot.py --config configs/pilot.yaml \
   --test-split data/test_split.json --hf-fallback
 ```
 
-Writes `logs/pilot_summary.json` (a top-level `rows` array with one record per generation call, plus an aggregate `summary` block). The OpenAI-compatible HTTP path is available as an implementation option:
+Writes `logs/pilot_summary.json` (a top-level `rows` array with one record per generation call, plus an aggregate `summary` block). For a small GitHub-readable view of the same run, run `python scripts/export_aggregate_summary.py` to write `logs/pilot_summary_aggregate.json`. The OpenAI-compatible HTTP path is available as an implementation option:
 
 ```bash
 export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
