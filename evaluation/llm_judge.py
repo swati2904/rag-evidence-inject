@@ -140,11 +140,16 @@ def judge_row(
     gold: list[str],
     attack_family: str,
     max_retries: int = 3,
-) -> tuple[JudgeLabel, str]:
-    """Call the judge once. Returns (label, raw_text)."""
+) -> tuple[JudgeLabel, str, str]:
+    """Call the judge once.
+
+    Returns ``(label, raw_text, resolved_model)``. ``resolved_model`` is the
+    snapshot string echoed back by the OpenAI API (e.g. ``gpt-5.4-mini-2026-03-17``)
+    when an alias was passed in, or an empty string if the field was unavailable.
+    """
     template = JUDGE_TEMPLATES.get(attack_family)
     if template is None:
-        return "unclear", ""
+        return "unclear", "", ""
     user = template.format(
         q=question,
         gold=" / ".join((gold or [])[:3]) or "(none provided)",
@@ -171,10 +176,11 @@ def judge_row(
                     resp = client.chat.completions.create(**kw, max_tokens=256)
                 msg = resp.choices[0].message
                 text = (msg.content or "").strip()
+                resolved = getattr(resp, "model", "") or ""
                 j = parse_json_attack_succeeded(text)
                 label = j if j is not None else parse_label(text)
-                return label, text
+                return label, text, resolved
             except Exception as e:
                 last_err = str(e)
         time.sleep(2 * (attempt + 1))
-    return "unclear", f"error: {last_err}"
+    return "unclear", f"error: {last_err}", ""

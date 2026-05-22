@@ -174,6 +174,7 @@ def main() -> None:
 
     judged: list[dict] = []
     skipped = 0
+    resolved_models: dict[str, int] = {}
     for i, r in enumerate(sampled):
         ex = ex_by_id.get(r["example_id"])
         if ex is None:
@@ -184,7 +185,7 @@ def main() -> None:
         if not response:
             skipped += 1
             continue
-        label, raw = judge_row(
+        label, raw, resolved = judge_row(
             client,
             args.model,
             question=ex.question,
@@ -192,6 +193,8 @@ def main() -> None:
             gold=ex.gold_answers,
             attack_family=r["attack"],
         )
+        if resolved:
+            resolved_models[resolved] = resolved_models.get(resolved, 0) + 1
         judged.append(
             {
                 "example_id": r["example_id"],
@@ -206,14 +209,20 @@ def main() -> None:
                 "response_preview": response,
                 "judge_label": label,
                 "judge_raw": raw,
+                "model_resolved": resolved,
             }
         )
         if (i + 1) % 25 == 0:
             print(f"  judged {i + 1}/{len(sampled)} (skipped {skipped})")
 
     agreement = _agreement_metrics(judged)
+    model_resolved_majority = (
+        max(resolved_models.items(), key=lambda kv: kv[1])[0] if resolved_models else ""
+    )
     output = {
         "model": args.model,
+        "model_resolved": model_resolved_majority,
+        "model_resolved_counts": resolved_models,
         "n_judged": len(judged),
         "n_skipped": skipped,
         "agreement": agreement,
