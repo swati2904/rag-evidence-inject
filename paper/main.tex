@@ -73,7 +73,7 @@ The attacker can insert exactly one passage into the per-query corpus. In the be
 The defender operates at the pipeline level: prompt assembly, retrieval-result post-processing, and content-side rewriting. The defender does not retrain or fine-tune the model.
 
 \paragraph{Evidence-present invariant.}
-Every per-query pool contains the gold passage. For the primary evidence-present analysis, every reported row additionally satisfies both \texttt{poison\_in\_topk = 1} and \texttt{gold\_in\_topk = 1}. Rows where gold evidence is absent from top-$k$ are logged as retrieval-exposure failures and excluded from the primary evidence-present tables.
+Every per-query pool contains the gold passage. For the primary evidence-present analysis, every reported row additionally satisfies both \path{poison_in_topk = 1} and \path{gold_in_topk = 1}. Rows where gold evidence is absent from top-$k$ are logged as retrieval-exposure failures and excluded from the primary evidence-present tables.
 
 \section{Method}
 \subsection{Benchmark construction}
@@ -95,17 +95,17 @@ Before generation experiments, we run a clean retrieval sanity check on the full
 
 Because each question appears under multiple rank and defense conditions, row-level binomial intervals understate uncertainty. ASR cells in \Cref{tab:pilot,tab:pilot-family,tab:pilot-rank} therefore report question-clustered bootstrap 95\% confidence intervals over per-row outcomes, resampling question clusters with replacement. We use 2{,}000 bootstrap resamples and report percentile intervals.
 
-To relate rules to an external judge, we stratify-sample $n{=}200$ evaluation rows (balancing defense and attack-family cells) and query the OpenAI \texttt{gpt-5.4-mini} API alias (accessed May 2026) with prompts aligned to each family's rule definitions. The released artifact records the API alias rather than a dated snapshot; subsequent runs of \path{scripts/run_llm_judge.py} additionally log the resolved snapshot string returned by the API in the \texttt{model\_resolved} field of \path{logs/llm_judge.json}. Full judgments and code are in \path{logs/llm_judge.json} and can be regenerated via \mbox{\texttt{python} \path{scripts/run_llm_judge.py}}. Agreement is strong: accuracy $0.915$, Cohen's $\kappa\,{\approx}\,0.78$. On this slice, every rule-positive row is also judge-positive, while the judge labels 17 additional rule-negative rows as successful attacks. Rule precision relative to the judge is $1.00$, recall is $0.712$, and F1 is $0.832$. Sample-weighted ASR is $0.210$ under rules versus $0.295$ under the judge, so rule-based ASR should be read as a tractable lower-bound proxy relative to this judge.
+To relate rules to an external judge, we stratify-sample $n{=}200$ evaluation rows (balancing defense and attack-family cells) and query the OpenAI \texttt{gpt-5.4-mini} API alias (accessed May 2026) with prompts aligned to each family's rule definitions. The released artifact records the API alias rather than a dated snapshot; subsequent runs of \path{scripts/run_llm_judge.py} additionally log the resolved snapshot string returned by the API in the \path{model_resolved} field of \path{logs/llm_judge.json}. Full judgments and code are in \path{logs/llm_judge.json} and can be regenerated via \mbox{\texttt{python} \path{scripts/run_llm_judge.py}}. Agreement is strong: accuracy $0.915$, Cohen's $\kappa\,{\approx}\,0.78$. On this slice, every rule-positive row is also judge-positive, while the judge labels 17 additional rule-negative rows as successful attacks. Rule precision relative to the judge is $1.00$, recall is $0.712$, and F1 is $0.832$. Sample-weighted ASR is $0.210$ under rules versus $0.295$ under the judge, so rule-based ASR should be read as a tractable lower-bound proxy relative to this judge.
 
 \subsection{Main evaluation}
-We run \path{scripts/run_pilot.py} over 100 KILT NQ and 100 Hotpot-style training items (seed~42), sampling a poison template per question from the full nine-template pool, then enumerating all five poison ranks and all five defenses (\texttt{none}, \texttt{reminder}, \texttt{boundary}, \texttt{trim}, \texttt{trim\_mask}). That yields 200 queries $\times$ 5 ranks $\times$ 5 defenses $=5000$ generation rows. In this run, \texttt{poison\_in\_topk} holds for all rows by construction and \texttt{gold\_in\_topk} holds for $91.9\%$ of rows. Unless otherwise stated, primary ASR, EM, and F1 results are computed on the 4{,}595 rows where both \texttt{poison\_in\_topk = 1} and \texttt{gold\_in\_topk = 1}. The remaining 405 rows are retained in the top-level \texttt{rows} array of \path{logs/pilot_summary.json} as retrieval-exposure failures but excluded from the evidence-present analysis; \path{logs/pilot_summary_aggregate.json} provides a browser-readable aggregate view of the same run. \Cref{tab:pilot} reports per-defense means exported via \mbox{\texttt{python} \path{scripts/export_tables.py}} with \texttt{--filter-gold-in-topk evidence}.
+We run \path{scripts/run_pilot.py} over 100 KILT NQ and 100 Hotpot-style training items (seed~42), sampling a poison template per question from the full nine-template pool, then enumerating all five poison ranks and all five defenses (\texttt{none}, \texttt{reminder}, \texttt{boundary}, \texttt{trim}, \path{trim_mask}). That yields 200 queries $\times$ 5 ranks $\times$ 5 defenses $=5000$ generation rows. In this run, \path{poison_in_topk} holds for all rows by construction and \path{gold_in_topk} holds for $91.9\%$ of rows. Unless otherwise stated, primary ASR, EM, and F1 results are computed on the 4{,}595 rows where both \path{poison_in_topk = 1} and \path{gold_in_topk = 1}. The remaining 405 rows are retained in the top-level \texttt{rows} array of \path{logs/pilot_summary.json} as retrieval-exposure failures but excluded from the evidence-present analysis; \path{logs/pilot_summary_aggregate.json} provides a browser-readable aggregate view of the same run. \Cref{tab:pilot} reports per-defense means exported via \mbox{\texttt{python} \path{scripts/export_tables.py}} with \texttt{--filter-gold-in-topk evidence}.
 
 Under attack, the undefended baseline reaches ASR $0.283$ (clustered 95\% CI $0.237$ to $0.331$) on the evidence-present subset, confirming the target phenomenon: directives embedded in carrier documents change answers even when gold is still in top-$k$. The soft \texttt{reminder} condition shows a slightly higher observed ASR than the undefended baseline ($0.303$, CI $0.255$ to $0.351$). One possible explanation is that the reminder primes the model to attend to directive-like language, though this effect should be interpreted cautiously without a paired significance test. The heavier \texttt{boundary} prompt remains close to the baseline ($0.284$, CI $0.239$ to $0.332$) but at a utility cost (EM drops to $0.269$). Structural isolation (TRIM) lowers ASR to $0.192$ (CI $0.151$ to $0.235$), and role-agnostic content masking (TRIM-mask) lowers ASR to $0.023$ (CI $0.009$ to $0.042$). Across the full 1{,}000-row TRIM-mask condition before evidence-present filtering, the mask fires on all 1{,}000 poison passages and on benign content in 4 rows; these diagnostic counts are separate from the 4{,}595-row evidence-present analysis. It is the only defense that simultaneously achieves the lowest ASR and the highest EM under attack ($0.388$).
 
 \begin{table}[H]
 \centering
 \small
-\caption{Primary evidence-present metrics by defense under attack. Rows are filtered to \texttt{gold\_in\_topk = 1} and \texttt{poison\_in\_topk = 1}; $n{=}919$ rows per defense (total $n{=}4{,}595$). Source: \path{logs/pilot_summary.json}.}
+\caption{Primary evidence-present metrics by defense under attack. Rows are filtered to \protect\path{gold_in_topk = 1} and \protect\path{poison_in_topk = 1}; $n{=}919$ rows per defense (total $n{=}4{,}595$). Source: \protect\path{logs/pilot_summary.json}.}
 \label{tab:pilot}
 \begin{tabular}{lccc}
 \toprule
@@ -127,7 +127,7 @@ trim\_mask & 0.023 (0.009, 0.042) & 0.388 & 0.500 \\
 \begin{table}[H]
 \centering
 \small
-\caption{ASR by defense and poison rank on the evidence-present subset. ASR increases by approximately $2\times$ from rank~1 to rank~5 for prompt-only defenses and unmasked TRIM, while TRIM-mask remains below $4\%$ across ranks. Source: \path{logs/pilot_summary.json}.}
+\caption{ASR by defense and poison rank on the evidence-present subset. ASR increases by approximately $2\times$ from rank~1 to rank~5 for prompt-only defenses and unmasked TRIM, while TRIM-mask remains below $4\%$ across ranks. Source: \protect\path{logs/pilot_summary.json}.}
 \label{tab:pilot-defense-rank}
 \begin{tabular}{lccccc}
 \toprule
@@ -149,7 +149,7 @@ Across the nine templates (\Cref{tab:pilot-template}), undefended ASR ranges fro
 \begin{table}[H]
 \centering
 \small
-\caption{Per-template breakdown on the main evaluation. ``ASR (none)'' is the undefended baseline ASR for that template, and ``ASR (all defenses)'' averages across all five defenses. Templates are grouped by family and sorted within family by descending undefended ASR. Source: \path{logs/pilot_summary.json}.}
+\caption{Per-template breakdown on the main evaluation. ``ASR (none)'' is the undefended baseline ASR for that template, and ``ASR (all defenses)'' averages across all five defenses. Templates are grouped by family and sorted within family by descending undefended ASR. Source: \protect\path{logs/pilot_summary.json}.}
 \label{tab:pilot-template}
 \begin{tabular}{llcccc}
 \toprule
@@ -175,7 +175,7 @@ Per-family and per-rank breakdowns are given in \Cref{tab:pilot-family,tab:pilot
 \begin{table}[H]
 \centering
 \small
-\caption{Attack success and EM by attack family on the evidence-present subset. Source: \path{logs/pilot_summary.json}.}
+\caption{Attack success and EM by attack family on the evidence-present subset. Source: \protect\path{logs/pilot_summary.json}.}
 \label{tab:pilot-family}
 \begin{tabular}{lccc}
 \toprule
@@ -192,7 +192,7 @@ instruction\_override & 1460 & 0.271 (0.203, 0.341) & 0.425 \\
 \begin{table}[H]
 \centering
 \small
-\caption{Attack success and EM by poison rank on the evidence-present subset. Source: \path{logs/pilot_summary.json}.}
+\caption{Attack success and EM by poison rank on the evidence-present subset. Source: \protect\path{logs/pilot_summary.json}.}
 \label{tab:pilot-rank}
 \begin{tabular}{cccc}
 \toprule
@@ -214,7 +214,7 @@ To separate attack-induced utility loss from defense-induced utility loss, we ru
 \begin{table}[H]
 \centering
 \small
-\caption{Matched clean-utility control: EM, F1, refusal rate, and clean mask-hit rows on poison-free pools. $n{=}200$ rows per defense. Sources: \path{logs/pilot_clean_summary.json} (EM, F1, refusal) and \path{logs/clean_mask_hit_diagnostic.json} (mask-hit rows). A dash marks defenses that do not invoke the masking pipeline.}
+\caption{Matched clean-utility control: EM, F1, refusal rate, and clean mask-hit rows on poison-free pools. $n{=}200$ rows per defense. Sources: \protect\path{logs/pilot_clean_summary.json} (EM, F1, refusal) and \protect\path{logs/clean_mask_hit_diagnostic.json} (mask-hit rows). A dash marks defenses that do not invoke the masking pipeline.}
 \label{tab:pilot-clean}
 \begin{tabular}{lcccc}
 \toprule
@@ -236,7 +236,7 @@ We run \path{scripts/run_ablation.py} on a smaller slice controlled by \texttt{-
 \begin{table}[H]
 \centering
 \small
-\caption{Ablation metrics by defense mode. Source: \path{logs/ablation_summary.json}.}
+\caption{Ablation metrics by defense mode. Source: \protect\path{logs/ablation_summary.json}.}
 \label{tab:ablation}
 \begin{tabular}{lcc}
 \toprule
