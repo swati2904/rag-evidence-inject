@@ -134,6 +134,10 @@ GitHub's web viewer may not render large JSON files clearly. The full main-run p
 
 KILT NQ rows often provide identifiers without full Wikipedia paragraph text. `benchmark/datasets.py` can build **short surrogate passages** from metadata so retrieval and poisoning run end to end. For experiments that need full gold passage text, swap in a corpus that stores passages explicitly (e.g. a Wikipedia join).
 
+## Dataset provenance and licenses
+
+The released logs contain metadata and outputs derived from KILT/Natural Questions and HotpotQA-style items. Users should consult the original dataset licenses and terms before redistributing derived benchmark content.
+
 ## Ethics
 
 The poison passages in this repository are synthetic and exist only to make controlled evaluation reproducible. TRIM-mask is intended to mitigate, not enable, indirect prompt injection. No deployed system is attacked. The released artifacts do not contain real-world prompt payloads, secrets, private data, or content from deployed systems.
