@@ -260,6 +260,9 @@ We introduced an evidence-present benchmark for indirect prompt injection in mul
 \section{Ethics and Broader Impact}
 The adversarial passages in this benchmark are synthetic and used only for controlled evaluation. The defense (TRIM-mask) is intended to mitigate, not enable, indirect prompt injection. We do not attack any deployed system. Public release includes code, frozen splits, synthetic carrier templates, and per-row result logs needed for reproducibility. Here, ``per-row result logs'' refers to \path{logs/pilot_summary.json.gz} for the main evaluation and the top-level \texttt{rows} array in \path{logs/pilot_clean_summary.json} for the clean control; the aggregate main-run summary is released as \path{logs/pilot_summary_aggregate.json}. These rows contain per-example metadata, scores, and masking indicators, but do not expose raw directive strings. The released artifacts do not contain real-world prompt payloads, secrets, private data, or content from deployed systems.
 
+\section*{Use of Generative AI Tools}
+The author used generative AI tools for copy-editing, organization, and implementation assistance. The author manually verified all technical claims, experimental outputs, numerical results, references, and released artifacts.
+
 \bibliographystyle{plain}
 \bibliography{references}
 
